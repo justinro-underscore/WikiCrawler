@@ -1,4 +1,5 @@
 import sys
+import re
 from web_puller import simple_get
 from bs4 import BeautifulSoup
 
@@ -43,15 +44,26 @@ def goto_page(url):
 
   # Find all paragraphs in the article
   article = html.find("div", attrs={"class": "mw-parser-output"})
-  paragraphs = article.findAll(["p", "ol", "ul"], attrs={"class": ""}, recursive=False)
-  # Loop through
-  for p in paragraphs:
-    links = p.select("a")
+  contents = article.findAll(["p", "ol", "ul"], attrs={"class": ""}, recursive=False)
+  # Loop through all paragraphs
+  for c in contents:
+    c = BeautifulSoup(re.sub(r" \([^\)]*\)", "", str(c)), "lxml") # Get rid of etymology
+    links = c.findAll("a")
     if links is None:
       raise RuntimeError("Page does not exist!")
+    if title == "Latin":
+      print(c)
     for link in links:
-      href = link["href"]
+      try:
+        href = link["href"]
+      except:
+        continue
       # Check if link is valid
+      # Don't go to:
+      #  Link not on wikipedia
+      #  Help page
+      #  File page
+      #  Sublink
       if (wiki_connector in href) and \
           (wiki_help_page not in href) and \
           (wiki_file_page not in href) and \
