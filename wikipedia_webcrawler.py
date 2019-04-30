@@ -1,4 +1,3 @@
-import sys
 import re
 from web_puller import simple_get
 from bs4 import BeautifulSoup
@@ -9,11 +8,8 @@ wiki_connector = "/wiki/"
 wiki_help_page = "Help:"
 wiki_file_page = "File:"
 
-# Holds the titles of all the pages we have traversed
-pages = []
-
 # Gets the loop once we detect it
-def get_loop():
+def get_loop(pages):
   loop = []
   key = pages.pop()
   pages.reverse()
@@ -24,7 +20,7 @@ def get_loop():
       return loop
 
 # Goes to the page given by the url
-def goto_page(url):
+def goto_page(url, pages, verbose):
   # Find the title
   raw_html = simple_get(url)
   try:
@@ -36,10 +32,13 @@ def goto_page(url):
   # Check if we have found a loop
   if title in pages:
     print("\nLoop detected!")
-    print("Loop detected at \"" + title + "\"\n")
+    print("Loop detected at \"" + title + "\"")
     pages.append(title)
     return
-  print(title)
+  if verbose:
+    print(title)
+  else:
+    print(".", end='', flush=True)
   pages.append(title)
 
   # Find all paragraphs in the article
@@ -47,12 +46,10 @@ def goto_page(url):
   contents = article.findAll(["p", "ol", "ul"], attrs={"class": ""}, recursive=False)
   # Loop through all paragraphs
   for c in contents:
-    c = BeautifulSoup(re.sub(r" \([^\)]*\)", "", str(c)), "lxml") # Get rid of etymology
+    c = BeautifulSoup(re.sub(r" \(from[^\)]*\)", "", str(c)), "lxml") # Get rid of etymology
     links = c.findAll("a")
     if links is None:
       raise RuntimeError("Page does not exist!")
-    if title == "Latin":
-      print(c)
     for link in links:
       try:
         href = link["href"]
@@ -68,19 +65,22 @@ def goto_page(url):
           (wiki_help_page not in href) and \
           (wiki_file_page not in href) and \
           ("#" not in href):
-        return goto_page(wiki_link + href)
+        return goto_page(wiki_link + href, pages, verbose)
   # If we have gone through all links and they are all invalid, throw error
   raise RuntimeError("No further links!")
 
-if __name__ == "__main__":
-  if len(sys.argv) > 1:
-    try:
-      # When we return, we have found a loop
-      goto_page(wiki_link + wiki_connector + sys.argv[1])
-      print(get_loop())
-    except RuntimeError as e: # We have hit a problem
-      print("\n" + str(e))
-      print("Here's the list of pages we reached:")
-      print(pages)
-  else:
-    print("Please provide object to search for (Usually must be capitalized)")
+# Runs the crawler from a starting word
+def run_crawler(word, verbose=False):
+  try:
+    # When we return, we have found a loop
+    if not verbose:
+      print(word)
+    pages = []
+    goto_page(wiki_link + wiki_connector + word, pages, verbose)
+    if not verbose:
+      print()
+    return get_loop(pages)
+  except RuntimeError as e: # We have hit a problem
+    print("\n" + str(e))
+    print("Here's the list of pages we reached:")
+    print(pages)
